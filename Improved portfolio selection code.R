@@ -1,5 +1,7 @@
-#Thesis code
-#Portfolio selection through copula parameter estimation and Penalization Regression
+#Paper code
+#Improved portfolio selection using sparse semi-parametric estimation of covariance and precision matrices and sparse statistics 
+#By: Ernesto María Cediel Cortés
+#Univesidad de los Andes
 #####Import and load all libraries####
 library(quadprog)
 #install.packages('stringr')
@@ -43,7 +45,7 @@ tbl <- tbl[1] %>% html_table() %>% as.data.frame()
 tbl$Symbol <- gsub(pattern = '\\.', '-', tbl$Symbol) # BRK.B -> BRK-B (yahoo uses '-')
 head(tbl$Symbol)
 
-#Retieve all prices for the 500 stocks in S&P 500 since 1-Jan-2007
+#Retieve all prices for the 500 stocks in S&P 500 since 1-Jan-2008
 prices = Map(function(n)
 {
   print(n)
@@ -73,7 +75,7 @@ table_na=pricesDF[stocks_na]
 pricesAdj=pricesDF[,!(names(pricesDF) %in% stocks_na)]
 
 #We desire to evaluate our models performances by dividing the data into two
-#From 01-Jan-2007 till 1 year from now, we'll have the training set. 
+#From 01-Jan-2008 till 1 year from now, we'll have the training set. 
 #The test set will be 252 days from today until today (252 data points)
 size=1*nrow(pricesAdj)
 brake=1*(size-252)
@@ -81,10 +83,6 @@ brake=1*(size-252)
 pricesAdj_CW=pricesAdj[(brake+1):size,]
 #Training set
 pricesAdj=pricesAdj[1:brake,]
-#REVISAR ESTO!!!!!
-#LHX apparently has some data issues, all the prices appear to be negative, we proceed to eliminate this stock
-#Debido a que la acción LHX está generando NaNs por el negativo que tienen sus valores, se elimina
-#prices = subset(prices, select = -c(LHX) )
 #Finally, we obtain the logarithmic returns of the prices for each stock
 #in both the training and the test set
 log_returns = apply(pricesAdj, 2, function(x) diff(log(x)))
@@ -272,12 +270,6 @@ copula=function(log_ret,delta){
   #Xsuper1=log_returns[1,]
   d=dim(log_ret)[2]*1
   n=dim(log_ret)[1]*1
-  #intento para el primer vector f(X^1)
-  #vector=rep(0,d)
-  #for (j in 1:d){
-  #  vector[j]=f_tilde(j,log_returns[2,j],n,delta,log_returns)
-  #}
-  
   #Calculate the mean for each f(X)
   f_tilde_i_n=matrix(rep(0,n*d),nrow=d,ncol = n)
   for(i in 1:n){
@@ -307,10 +299,6 @@ var_cov_copula=copula(log_returns,1/((4*(n^(1/4)))*(sqrt(pi*log(n)))))
 #We proceed to estimate the portfolio weights for the different model approaches
 #above, but this time using the estimated variance covariance matrix using copulas
 #First, we must use Glasso to estimate the inverse of the variance-covariance matrix.
-
-#log_returns.norm=scale(log_returns)
-#log_returns.npn=huge.npn(log_returns.norm,npn.func = "truncation")
-
 #We use the CVglasso library that uses cross validation to obtain a very good candidate
 #for the inverse of the variance covariance matrix. 
 #From now onwards, we will refer to the inverse of the variance covariance
@@ -319,8 +307,6 @@ precision_glasso_copula_m=CVglasso(X=log_returns,S=var_cov_copula,lam.min.ratio 
 #With lam.min.ratio=1e-3, we have arrived to a optimal tuning parameter thats not on boundary
 precision_glasso_copula=precision_glasso_copula_m$Omega
 var_cov_glasso_copula=precision_glasso_copula_m$Sigma
-#PREGUNTAR A CARLOS SI TIENE SENTIDO UTILIZAR LA COPULA ESTIMADA Y NO LA PENALIZADA POR GLASSO
-#PREGUNTAR A CARLOS, PORQUE DA TAN MAL CUANDO SE TRATA DE NORMALIZAR (NORMAL SCORES)
 #Model 3.1: Markowitz forced traditional approach with copula & glasso var-cov and precision matrices
 w_Mark_Forced_glasso_copula=traditionalMarkowitzForced(av_coef,precision_glasso_copula,miu)
 #Model 3.2: Markowitz optimization traditional approach with copula & glasso var-cov and precision matrices
@@ -332,15 +318,6 @@ wRidge_glasso_copula=markowitzRegressionPenalization(av_coef,var_cov_glasso_copu
 wLasso_glasso_copula=markowitzRegressionPenalization(av_coef,var_cov_glasso_copula,precision_glasso_copula,miu,1,(p/3))
 
 #####Model 4: Glasso estimation of variance covariance matrix (Simply to check the effect of using the copula estimated var-cov)######
-#log_returns.npn=huge.npn(log_returns,npn.func = "truncation")
-#Estimate the glasso
-#out.npn=huge(var_cov,method = "glasso",nlambda=40,lambda.min.ratio = 0.4)
-#npn.ric = huge.select(out.npn)
-#precision_glasso=as.matrix(out.npn[["icov"]][[40]])
-#rho=seq(0,10,by=0.01)
-#precision_glasso=glasso(var_cov,0.01)$wi
-#var_cov_glasso=glasso(var_cov,0.01)$w
-#var_cov_norm=cov(log_returns.npn)
 precision_glasso_m=CVglasso(X=log_returns,S=S,lam.min.ratio = 1e-3)
 precision_glasso=precision_glasso_m$Omega
 var_cov_glasso=precision_glasso_m$Sigma
@@ -362,7 +339,6 @@ wLasso_glasso=markowitzRegressionPenalization(av_coef,var_cov_glasso,precision_g
 #Description: The CW function returns a vector containing the cummulaitve wealth obtained with the inputed portfolio, 
 #Inputs: log_ret: data that will be used for the estimation
 #portfolio: Portfolio to evaluate 
-
 #Output: (nx1 vector) The series of cummulative weights from time=1 to n (size of log_ret)
 cw=function(log_ret,portfolio){
   CW=c()
@@ -462,7 +438,7 @@ dev.off()
 
 
 
- #Graph 5: Best line of each model in one graph for comparison
+#Graph 5: Best line of each model in one graph for comparison
 
 #Line 5.1: Naive approach (reference)
 Naive=cw(log_returns_CW,wNaive)
@@ -938,7 +914,5 @@ data$CovarianceMatrix=factor(data$CovarianceMatrix,levels=c("SS","GLASSO","Copul
 jpeg("IR_MarkForced_2008_G.jpg", width = 1081.5, height = 1215)
 ggplot(data, aes(fill=CovarianceMatrix, y=InformationRatio , x=Models)) + geom_bar(position="dodge", stat="identity")+scale_fill_hue(l=40, c=70)+labs(title="Portfolio Information Ratio",subtitle="Benchmark = Markowitz Forced w/ S")+theme(legend.position = c(0.2, 0.85),legend.title = element_text(size = 25),legend.text = element_text(size = 22),legend.key.size = unit(3,"line"),axis.text=element_text(size=18),axis.title=element_text(size=30,face="bold"),plot.title = element_text(size=26,face="bold"),plot.subtitle = element_text(size=22))
 dev.off()
-
-#PARA ENTREGAR EL CÓDIGO, BORRAR LOS 2008 DE LOS GRAFICOS, MEJORAR ALGUNAS DESCRIPCIONES, VERIFICAR LO QUE SE DECIA DE UN INDICE LHX
 
 
